@@ -36,6 +36,7 @@ class NICE(nn.Module):
         y = self.couple4(y)
         # Apply the scaling layer
         y = torch.matmul(y, torch.diag(torch.exp(self.scaling_diag)))
+        # y = torch.matmul(y, torch.diag(self.scaling_diag))
         # FIXME: exp(S_ii) causing loss to escape?
 
         return y

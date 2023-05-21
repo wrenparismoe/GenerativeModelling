@@ -11,6 +11,7 @@ class ReLUNet(nn.Module):
         for _ in range(num_layers):
             modules.append(nn.Linear(hidden_dim, hidden_dim))
             modules.append(nn.ReLU())
+            modules.append(nn.BatchNorm1d(hidden_dim)) # NOTE: BatchNorm added to eliminate loss NaNs
         modules.append(nn.Linear(hidden_dim, latent_dim))
         self.net = nn.Sequential(*modules)
 

@@ -1,6 +1,6 @@
+import numpy as np
 import torch
 import torch.nn as nn
-import numpy as np
 
 """
 Goal: LEarn a continuous, differentiable non-linear transformation f of the data distribution into
@@ -29,9 +29,10 @@ class _NICECriterion(nn.Module):
     Implementation of equation (3) above. Base class for Gaussian and Logistic criterion classes.
     """
 
-    def __init__(self, average=True):
+    def __init__(self, average=True, eps=1e-7):
         super(_NICECriterion, self).__init__()
         self.average = average
+        self.eps=eps
 
     def prior(self, h):
         # Implement in child classes (4) and (5)
@@ -40,11 +41,13 @@ class _NICECriterion(nn.Module):
     def forward(self, h, s_diag):
         # Implementation of (3). Identical for both Gaussian and Logistic.
         # Don't take log of S_ii since it's already in log space, we take exp(S_ii) in forward pass.
-        log_p = torch.sum(self.prior(h), dim=1) + torch.sum(s_diag)
+        # log_p = torch.sum(self.prior(h), dim=1) + torch.sum(s_diag)
+        log_p = self.prior(h) + torch.sum(s_diag)
+        # log_p = torch.sum(self.prior(h), dim=1) + torch.sum(torch.log(s_diag + 1e-8))
         if self.average:
-            return torch.mean(log_p)
+            return torch.mean(-log_p)
         else:
-            return torch.sum(log_p)
+            return torch.sum(-log_p)
 
 
 class GaussianNICECriterion(_NICECriterion):
@@ -52,9 +55,10 @@ class GaussianNICECriterion(_NICECriterion):
     Implementation of (4) above. Gaussian prior based log-lokielihood critereon.
     """
 
-    def __init__(self, average=True):
-        super(GaussianNICECriterion, self).__init__()
+    # def __init__(self):
+    #     super(GaussianNICECriterion, self).__init__()
 
     def prior(self, h):
         # Implementation of (4) above.
-        return -0.5 * (h**2 + torch.log(torch.tensor(2 * np.pi)))
+        # return -0.5 * (torch.sum(torch.pow(h, 2), dim=1) + torch.log(torch.tensor(2 * np.pi)))
+        return -0.5 * (torch.sum(torch.pow(h, 2), dim=1) +h.size(1)*torch.log(torch.tensor(2*np.pi)))

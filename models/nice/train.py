@@ -1,11 +1,12 @@
+import argparse
+
 import torch
+from data import load_data
+from loss import GaussianNICECriterion
+from model import NICE
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-import argparse
-from data import load_data
 from utils import set_seed
-from model import NICE
-from loss import GaussianNICECriterion
 
 # import wandb
 
@@ -23,7 +24,7 @@ def train(args, model, train_dataset, test_dataset):
 
     # Create the optimizer (AdaM)
     optimizer = torch.optim.Adam(
-        model.parameters(), lr=args.lr, betas=(args.mom, args.B2), eps=args.eps
+        model.parameters(), lr=args.lr, weight_decay=1e-6
     )
 
     nice_loss_fn = GaussianNICECriterion(average=True)
@@ -46,14 +47,15 @@ def train(args, model, train_dataset, test_dataset):
 if __name__ == "__main__":
     # parse command line arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument("--batch_size", type=int, default=64)
-    parser.add_argument("--epochs", type=int, default=200)
+    parser.add_argument("--batch_size", type=int, default=32)
+    parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--dataset", type=str, default="mnist")
-    parser.add_argument("--learning_rate", dest="lr", type=float, default=1e-6)
+    parser.add_argument("--learning_rate", dest="lr", type=float, default=1e-4)
     parser.add_argument("--momentum", dest="mom", type=float, default=0.9)
+    parser.add_argument("--beta1", dest="B1", type=float, default=0.9)
     parser.add_argument("--beta2", dest="B2", type=float, default=0.01)
-    parser.add_argument("--lambda", dest="lam", type=float, default=1)
-    parser.add_argument("--epsilon", dest="eps", type=float, default=1e-4)
+    parser.add_argument("--lambda", dest="lam", type=float, default=0.0)
+    parser.add_argument("--epsilon", dest="eps", type=float, default=0.0001)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--nonlinear_layers", dest="num_layers", type=int, default=5)
     parser.add_argument(
