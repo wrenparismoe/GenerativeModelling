@@ -52,13 +52,19 @@ class _NICECriterion(nn.Module):
 
 class GaussianNICECriterion(_NICECriterion):
     """
-    Implementation of (4) above. Gaussian prior based log-lokielihood critereon.
+    Implementation of (4) above. Gaussian prior based log-likelihood critereon.
     """
-
-    # def __init__(self):
-    #     super(GaussianNICECriterion, self).__init__()
 
     def prior(self, h):
         # Implementation of (4) above.
         # return -0.5 * (torch.sum(torch.pow(h, 2), dim=1) + torch.log(torch.tensor(2 * np.pi)))
         return -0.5 * (torch.sum(torch.pow(h, 2), dim=1) +h.size(1)*torch.log(torch.tensor(2*np.pi)))
+    
+class LogisticNICECriterion(_NICECriterion):
+    """
+    Implementation of (5) above. Logistic prior based log-likelihood critereon.
+    """
+
+    def prior(self, h):
+        # Implementation of (5) above.
+        return  -0.5*(torch.sum(torch.pow(h,2),dim=1) + h.size(1)*torch.log(torch.tensor(2*np.pi)))

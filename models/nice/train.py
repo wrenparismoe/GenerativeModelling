@@ -1,6 +1,7 @@
 import argparse
 
 import torch
+import numpy as np
 from data import load_data
 from loss import GaussianNICECriterion
 from model import NICE
@@ -8,7 +9,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 from utils import set_seed
 
-# import wandb
+import wandb
 
 if torch.cuda.is_available():
     device = torch.device("cuda")
@@ -24,33 +25,71 @@ def train(args, model, train_dataset, test_dataset):
 
     # Create the optimizer (AdaM)
     optimizer = torch.optim.Adam(
-        model.parameters(), lr=args.lr, weight_decay=1e-6
+        model.parameters(), lr=args.lr, #weight_decay=1e-6
     )
 
     nice_loss_fn = GaussianNICECriterion(average=True)
 
     num_steps = 0
+    loss = None
+    model.train()
     for epoch in range(args.epochs):
         print(f"Epoch {epoch + 1} of {args.epochs}")
-        for batch, labels in tqdm(train_loader):
+        for batch, labels in (pbar := tqdm(train_loader, desc="Training", postfix={"Loss": loss})):
             optimizer.zero_grad()
             outputs = model(batch.to(device))
             loss = nice_loss_fn(outputs, model.scaling_diag)
             loss.backward()
             optimizer.step()
             num_steps += 1
-            print("    loss: ", loss.item())
+            pbar.set_postfix({"Loss": loss.item()})
 
-            # wandb.log({"train_loss": loss.item()}, step=num_steps)
+            wandb.log({"train_loss": loss.item()}, step=num_steps)
+        
+        val_results = validate(model, test_loader, nice_loss_fn)
+        print(val_results)
+
+        wandb.log(val_results, step=num_steps)
+
+num_val_steps = 0
+def validate(model, dataloader, loss_fn):
+    """Perform validation on a dataset."""
+    # set model to eval mode (turns batch norm training off)
+    model.eval()
+    global num_val_steps
+
+    # turn gradient-tracking off (for speed) during validation:
+    loss = None
+    validation_losses = []
+    with torch.no_grad():
+        for inputs,_ in (pbar := tqdm(dataloader, desc="Validation", postfix={"Loss": loss})):
+            outputs = model(inputs.to(device))
+            loss = loss_fn(outputs, model.scaling_diag)
+            validation_losses.append(loss.item())
+            pbar.set_postfix({"Loss": loss.item()})
+            num_val_steps += 1
+
+            wandb.log({"val_loss": loss.item()}, step=num_val_steps)
+        
+    model.train()
+
+    results = {
+        "val_loss_min": np.amin(validation_losses),
+        "val_loss_med": np.median(validation_losses),
+        "val_loss_mean": np.mean(validation_losses),
+        "val_loss_max": np.amax(validation_losses),
+    }
+
+    return results
 
 
 if __name__ == "__main__":
     # parse command line arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument("--batch_size", type=int, default=32)
-    parser.add_argument("--epochs", type=int, default=50)
+    parser.add_argument("--batch_size", type=int, default=64)
+    parser.add_argument("--epochs", type=int, default=8)
     parser.add_argument("--dataset", type=str, default="mnist")
-    parser.add_argument("--learning_rate", dest="lr", type=float, default=1e-4)
+    parser.add_argument("--learning_rate", dest="lr", type=float, default=1e-5)
     parser.add_argument("--momentum", dest="mom", type=float, default=0.9)
     parser.add_argument("--beta1", dest="B1", type=float, default=0.9)
     parser.add_argument("--beta2", dest="B2", type=float, default=0.01)
@@ -70,13 +109,13 @@ if __name__ == "__main__":
     set_seed(args)
 
     # Initialize wandb
-    # wandb.init(
-    #     project="GenerativeModelling",
-    #     config={
-    #         "batch_size": args.batch_size,
-    #         "epochs": args.epochs,
-    #         "dataset": args.dataset,
-    #         "learning_rate": args.lr,
+    wandb.init(
+        project="GenerativeModelling",
+        config={
+            "batch_size": args.batch_size,
+            "epochs": args.epochs,
+            "dataset": args.dataset,
+            "learning_rate": args.lr,
     #         "momentum": args.mom,
     #         "beta2": args.B2,
     #         "lambda": args.lam,
@@ -84,8 +123,8 @@ if __name__ == "__main__":
     #         "nonlinear_layers": args.num_layers,
     #         "nonlinear_hidden_dim": args.hidden_dim,
     #         "prior": args.prior,
-    #     },
-    # )
+        },
+    )
 
     # load data using load_data function from data.py
     train_dataset, test_dataset = load_data(args.dataset)
@@ -100,6 +139,9 @@ if __name__ == "__main__":
         raise NotImplementedError(
             f"Dataset {args.dataset} not implemented yet. Please choose from ['mnist']"
         )
+    
+    # Print device to run model on
+    print(f"Running model on {device}")
 
     # Create the model
     model = NICE(
