@@ -25,7 +25,8 @@ def train(args, model, train_dataset, test_dataset):
 
     # Create the optimizer (AdaM)
     optimizer = torch.optim.Adam(
-        model.parameters(), lr=args.lr, #weight_decay=1e-6
+        model.parameters(), lr=args.lr, weight_decay=args.decay, betas=(args.B1, args.B2),
+        eps=args.eps
     )
 
     nice_loss_fn = GaussianNICECriterion(average=True)
@@ -43,22 +44,23 @@ def train(args, model, train_dataset, test_dataset):
             optimizer.step()
             num_steps += 1
             pbar.set_postfix({"Loss": loss.item()})
-
-            wandb.log({"train_loss": loss.item()}, step=num_steps)
+            
+            if args.wandb:
+                wandb.log({"train_loss": loss.item()}, step=num_steps)
         
-        val_results = validate(model, test_loader, nice_loss_fn)
+        val_results = validate(args, model, test_loader, nice_loss_fn)
         print(val_results)
 
-        wandb.log(val_results, step=num_steps)
+        if args.wandb:
+            wandb.log(val_results, step=num_steps)
 
 num_val_steps = 0
-def validate(model, dataloader, loss_fn):
+def validate(args, model, dataloader, loss_fn):
     """Perform validation on a dataset."""
     # set model to eval mode (turns batch norm training off)
     model.eval()
     global num_val_steps
 
-    # turn gradient-tracking off (for speed) during validation:
     loss = None
     validation_losses = []
     with torch.no_grad():
@@ -69,7 +71,8 @@ def validate(model, dataloader, loss_fn):
             pbar.set_postfix({"Loss": loss.item()})
             num_val_steps += 1
 
-            wandb.log({"val_loss": loss.item()}, step=num_val_steps)
+            if args.wandb:
+                wandb.log({"val_loss": loss.item()}, step=num_val_steps)
         
     model.train()
 
@@ -90,11 +93,11 @@ if __name__ == "__main__":
     parser.add_argument("--epochs", type=int, default=8)
     parser.add_argument("--dataset", type=str, default="mnist")
     parser.add_argument("--learning_rate", dest="lr", type=float, default=1e-5)
-    parser.add_argument("--momentum", dest="mom", type=float, default=0.9)
+    parser.add_argument("--decay", type=float, default=1e-6)
     parser.add_argument("--beta1", dest="B1", type=float, default=0.9)
-    parser.add_argument("--beta2", dest="B2", type=float, default=0.01)
+    parser.add_argument("--beta2", dest="B2", type=float, default=0.999)
     parser.add_argument("--lambda", dest="lam", type=float, default=0.0)
-    parser.add_argument("--epsilon", dest="eps", type=float, default=0.0001)
+    parser.add_argument("--epsilon", dest="eps", type=float, default=1e-8)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--nonlinear_layers", dest="num_layers", type=int, default=5)
     parser.add_argument(
@@ -103,28 +106,31 @@ if __name__ == "__main__":
     parser.add_argument(
         "--prior", type=str, choices=("gaussian", "logistic"), default="gaussian"
     )
+    parser.add_argument("--wandb", action="store_true")
     args = parser.parse_args()
 
     # Set seeds for reproducibility
     set_seed(args)
 
-    # Initialize wandb
-    wandb.init(
-        project="GenerativeModelling",
-        config={
-            "batch_size": args.batch_size,
-            "epochs": args.epochs,
-            "dataset": args.dataset,
-            "learning_rate": args.lr,
-    #         "momentum": args.mom,
-    #         "beta2": args.B2,
-    #         "lambda": args.lam,
-    #         "epsilon": args.eps,
-    #         "nonlinear_layers": args.num_layers,
-    #         "nonlinear_hidden_dim": args.hidden_dim,
-    #         "prior": args.prior,
-        },
-    )
+    if args.wandb:
+        # Initialize wandb
+        wandb.init(
+            project="GenerativeModelling",
+            config={
+                "batch_size": args.batch_size,
+                "epochs": args.epochs,
+                "dataset": args.dataset,
+                "learning_rate": args.lr,
+                "decay": args.decay,
+                "beta1": args.B2,
+                "beta2": args.B2,
+                "lambda": args.lam,
+                "epsilon": args.eps,
+                "nonlinear_layers": args.num_layers,
+                "nonlinear_hidden_dim": args.hidden_dim,
+                "prior": args.prior,
+            },
+        )
 
     # load data using load_data function from data.py
     train_dataset, test_dataset = load_data(args.dataset)
