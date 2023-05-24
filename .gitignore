@@ -4,3 +4,4 @@ datasets/MNIST/mnist_train.csv
 datasets/MNIST/mnist_test.csv
 .mypy_cache
 wandb
+test.ipynb
