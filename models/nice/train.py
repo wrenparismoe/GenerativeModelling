@@ -2,12 +2,16 @@ import argparse
 
 import torch
 import numpy as np
-from data import load_data
-from loss import GaussianNICECriterion, LogisticNICECriterion
-from model import NICE
+from .data import load_data
+from .loss import (
+    GaussianNICECriterion,
+    LogisticNICECriterion,
+    StandardLogisticDistribution,
+)
+from .model import NICE
 from torch.utils.data import DataLoader
 from tqdm import tqdm
-from utils import set_seed
+from .utils import set_seed
 import os
 
 import wandb
@@ -30,19 +34,25 @@ def train(args, model, train_dataset, test_dataset):
         model.parameters(),
         lr=args.lr,
         weight_decay=args.decay,
-        betas=(args.B1, args.B2),
-        eps=args.eps,
+        # betas=(args.B1, args.B2),
+        # eps=args.eps,
     )
 
     if args.prior == "gaussian":
-        nice_loss_fn = GaussianNICECriterion(average=True)
+        nice_loss_fn = GaussianNICECriterion(average=False)
     elif args.prior == "logistic":
-        nice_loss_fn = LogisticNICECriterion(average=True)
+        # nice_loss_fn = LogisticNICECriterion(average=False)
+        distribution = StandardLogisticDistribution(device=device)
+
+        def nice_loss_fn(y, log_jacobian):
+            log_likelihood = distribution.log_pdf(y) + log_jacobian
+            return -log_likelihood.sum()
+
     else:
         raise ValueError("Invalid loss function")
 
     num_steps = 0
-    loss = None
+    loss = 0
     model.train()
     for epoch in range(args.epochs):
         print(f"Epoch {epoch + 1} of {args.epochs}")
@@ -56,9 +66,9 @@ def train(args, model, train_dataset, test_dataset):
         for batch, labels in (
             pbar := tqdm(train_loader, desc="Training", postfix={"Loss": loss})
         ):
-            optimizer.zero_grad()
-            outputs = model(batch.to(device))
-            loss = nice_loss_fn(outputs, model.scaling_diag)
+            y, log_jacobian = model(batch.to(device))
+            loss = nice_loss_fn(y, log_jacobian)
+            model.zero_grad()
             loss.backward()
             optimizer.step()
             num_steps += 1
@@ -67,18 +77,18 @@ def train(args, model, train_dataset, test_dataset):
             if args.wandb:
                 wandb.log({"train_loss": loss.item()}, step=num_steps)
         del train_loader
+
         if args.save_model and (epoch) % args.save_epoch == 0:
             _device = "cuda" if torch.cuda.is_available() else "cpu"
-            _args = f"{args.dataset}_{args.num_layers}_{args.hidden_dim}_{args.prior}_epoch{epoch+1}_{_device}"
-            torch.save(model.state_dict(), os.path.join(args.save_path, _args, ".pt"))
+            _args = f"{args.dataset}_{args.num_layers}_{args.hidden_dim}_{args.prior}_epoch{epoch+1}_{_device}.pt"
+            torch.save(model.state_dict(), os.path.join(args.save_path, _args))
             print(f"Model saved >>> {_args}")
 
-        val_results = validate(args, model, test_dataset, nice_loss_fn)
+        # val_results = validate(args, model, test_dataset, nice_loss_fn)
         # print values of val_results with a precision of 4 decimal places
-        print({k: f"{v:.4f}" for k, v in val_results.items()})
-
-        if args.wandb:
-            wandb.log(val_results, step=epoch)
+        # print({k: f"{v:.4f}" for k, v in val_results.items()})
+        # if args.wandb:
+        # wandb.log(val_results, step=epoch)
 
 
 num_val_steps = 0
@@ -97,14 +107,14 @@ def validate(args, model, dataset, loss_fn):
     model.eval()
     global num_val_steps
 
-    loss = None
+    loss = 0
     validation_losses = []
     with torch.no_grad():
-        for inputs, _ in (
+        for batch, _ in (
             pbar := tqdm(val_loader, desc="Validation", postfix={"Loss": loss})
         ):
-            outputs = model(inputs.to(device))
-            loss = loss_fn(outputs, model.scaling_diag)
+            y, log_jacobian = model(batch.to(device))
+            loss = loss_fn(y, log_jacobian)
             validation_losses.append(loss.item())
             pbar.set_postfix({"Loss": loss.item()})
             num_val_steps += 1
@@ -127,11 +137,11 @@ def validate(args, model, dataset, loss_fn):
 if __name__ == "__main__":
     # parse command line arguments
     parser = argparse.ArgumentParser()
-    parser.add_argument("--batch_size", type=int, default=64)
-    parser.add_argument("--epochs", type=int, default=10)
+    parser.add_argument("--batch_size", type=int, default=32)
+    parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--dataset", type=str, default="mnist")
-    parser.add_argument("--learning_rate", dest="lr", type=float, default=1e-5)
-    parser.add_argument("--decay", type=float, default=1e-6)
+    parser.add_argument("--learning_rate", dest="lr", type=float, default=0.0002)
+    parser.add_argument("--decay", type=float, default=0.9)
     parser.add_argument("--beta1", dest="B1", type=float, default=0.9)
     parser.add_argument("--beta2", dest="B2", type=float, default=0.999)
     parser.add_argument("--lambda", dest="lam", type=float, default=0.0)
@@ -142,7 +152,7 @@ if __name__ == "__main__":
         "--nonlinear_hidden_dim", dest="hidden_dim", type=int, default=1000
     )
     parser.add_argument(
-        "--prior", type=str, choices=("gaussian", "logistic"), default="gaussian"
+        "--prior", type=str, choices=("gaussian", "logistic"), default="logistic"
     )
     # args for save_model, save_epoch, save_path, and model_path
     parser.add_argument(
@@ -154,7 +164,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--save_epoch",
         type=int,
-        default=10,
+        default=9,
         help="Number of saves between epochs. Default: 10",
     )
     parser.add_argument(

@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from layers import CouplingLayer
+from .layers import CouplingLayer
 
 
 class NICE(nn.Module):
@@ -21,9 +21,9 @@ class NICE(nn.Module):
         Multiplies the ith output value by S_ii. Weights certain dim more than others.
         Similar to eigenspectrum of PCA, exposing the variation present in each latent dimension 
         (larger S_ii means the less important dimension i is). More important dimensions of the 
-        spctrum can be viewed as a manifold learned by the mdoel.
+        spctrum can be viewed as a manifold learned by the model.
         """
-        self.scaling_diag = nn.Parameter(torch.ones(input_dim))
+        self.s = nn.Parameter(torch.randn(input_dim))
 
     def forward(self, x):
         """
@@ -35,11 +35,11 @@ class NICE(nn.Module):
         y = self.couple3(y)
         y = self.couple4(y)
         # Apply the scaling layer
-        y = torch.matmul(y, torch.diag(torch.exp(self.scaling_diag)))
-        # y = torch.matmul(y, torch.diag(self.scaling_diag))
-        # FIXME: exp(S_ii) causing loss to escape?
+        # y = torch.matmul(y, torch.diag(torch.exp(self.s)))
+        y = y * torch.exp(self.s)
+        log_jacobian = torch.sum(self.s)
 
-        return y
+        return y, log_jacobian
 
     def inverse(self, y):
         """
@@ -47,7 +47,8 @@ class NICE(nn.Module):
         """
         with torch.no_grad():
             # Apply the inverse scaling layer
-            x = torch.matmul(y, torch.diag(torch.exp(-self.scaling_diag)))
+            # x = torch.matmul(y, torch.diag(torch.exp(-self.s)))
+            x = y / torch.exp(self.s)
             # Apply the inverse coupling layers
             x = self.couple4.inverse(x)
             x = self.couple3.inverse(x)
