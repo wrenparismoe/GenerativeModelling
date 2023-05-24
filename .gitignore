@@ -1,11 +1,9 @@
 datasets/MNIST/
-datasets/MNIST/torchvision
+datasets/MNIST/*
+datasets/MNIST/torchvision/
+datasets/MNIST/torchvision/*
 datasets/MNIST/mnist_train.csv
 datasets/MNIST/mnist_test.csv
-.mypy_cache
-models/nice/__pycache__
-models/nice/__pycache__/*
 saved_models/*
 saved_models/nice/*
 wandb
-test.ipynb
