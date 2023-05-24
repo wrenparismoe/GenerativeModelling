@@ -32,7 +32,7 @@ class _NICECriterion(nn.Module):
     def __init__(self, average=True, eps=1e-7):
         super(_NICECriterion, self).__init__()
         self.average = average
-        self.eps=eps
+        self.eps = eps
 
     def prior(self, h):
         # Implement in child classes (4) and (5)
@@ -42,7 +42,7 @@ class _NICECriterion(nn.Module):
         # Implementation of (3). Identical for both Gaussian and Logistic.
         # Don't take log of S_ii since it's already in log space, we take exp(S_ii) in forward pass.
         # log_p = torch.sum(self.prior(h), dim=1) + torch.sum(s_diag)
-        log_p = self.prior(h) + torch.sum(s_diag)
+        log_p = self.prior(h) + torch.sum(torch.abs(s_diag))
         # log_p = torch.sum(self.prior(h), dim=1) + torch.sum(torch.log(s_diag + 1e-8))
         if self.average:
             return torch.mean(-log_p)
@@ -58,8 +58,12 @@ class GaussianNICECriterion(_NICECriterion):
     def prior(self, h):
         # Implementation of (4) above.
         # return -0.5 * (torch.sum(torch.pow(h, 2), dim=1) + torch.log(torch.tensor(2 * np.pi)))
-        return -0.5 * (torch.sum(torch.pow(h, 2), dim=1) +h.size(1)*torch.log(torch.tensor(2*np.pi)))
-    
+        return -0.5 * (
+            torch.sum(torch.pow(h, 2), dim=1)
+            + h.size(1) * torch.log(torch.tensor(2 * np.pi))
+        )
+
+
 class LogisticNICECriterion(_NICECriterion):
     """
     Implementation of (5) above. Logistic prior based log-likelihood critereon.
@@ -67,4 +71,7 @@ class LogisticNICECriterion(_NICECriterion):
 
     def prior(self, h):
         # Implementation of (5) above.
-        return  -0.5*(torch.sum(torch.pow(h,2),dim=1) + h.size(1)*torch.log(torch.tensor(2*np.pi)))
+        return -0.5 * (
+            torch.sum(torch.pow(h, 2), dim=1)
+            + h.size(1) * torch.log(torch.tensor(2 * np.pi))
+        )
