@@ -25,8 +25,11 @@ def train(args, model, train_dataset, test_dataset):
 
     # Create the optimizer (AdaM)
     optimizer = torch.optim.Adam(
-        model.parameters(), lr=args.lr, weight_decay=args.decay, betas=(args.B1, args.B2),
-        eps=args.eps
+        model.parameters(),
+        lr=args.lr,
+        weight_decay=args.decay,
+        betas=(args.B1, args.B2),
+        eps=args.eps,
     )
 
     nice_loss_fn = GaussianNICECriterion(average=True)
@@ -36,7 +39,9 @@ def train(args, model, train_dataset, test_dataset):
     model.train()
     for epoch in range(args.epochs):
         print(f"Epoch {epoch + 1} of {args.epochs}")
-        for batch, labels in (pbar := tqdm(train_loader, desc="Training", postfix={"Loss": loss})):
+        for batch, labels in (
+            pbar := tqdm(train_loader, desc="Training", postfix={"Loss": loss})
+        ):
             optimizer.zero_grad()
             outputs = model(batch.to(device))
             loss = nice_loss_fn(outputs, model.scaling_diag)
@@ -44,17 +49,20 @@ def train(args, model, train_dataset, test_dataset):
             optimizer.step()
             num_steps += 1
             pbar.set_postfix({"Loss": loss.item()})
-            
+
             if args.wandb:
                 wandb.log({"train_loss": loss.item()}, step=num_steps)
-        
+
         val_results = validate(args, model, test_loader, nice_loss_fn)
         print(val_results)
 
         if args.wandb:
             wandb.log(val_results, step=num_steps)
 
+
 num_val_steps = 0
+
+
 def validate(args, model, dataloader, loss_fn):
     """Perform validation on a dataset."""
     # set model to eval mode (turns batch norm training off)
@@ -64,7 +72,9 @@ def validate(args, model, dataloader, loss_fn):
     loss = None
     validation_losses = []
     with torch.no_grad():
-        for inputs,_ in (pbar := tqdm(dataloader, desc="Validation", postfix={"Loss": loss})):
+        for inputs, _ in (
+            pbar := tqdm(dataloader, desc="Validation", postfix={"Loss": loss})
+        ):
             outputs = model(inputs.to(device))
             loss = loss_fn(outputs, model.scaling_diag)
             validation_losses.append(loss.item())
@@ -73,7 +83,7 @@ def validate(args, model, dataloader, loss_fn):
 
             if args.wandb:
                 wandb.log({"val_loss": loss.item()}, step=num_val_steps)
-        
+
     model.train()
 
     results = {
@@ -105,6 +115,19 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--prior", type=str, choices=("gaussian", "logistic"), default="gaussian"
+    )
+    # args for save_epoch and model_path
+    parser.add_argument(
+        "--save_epoch",
+        type=int,
+        default=10,
+        help="Number of saves between epochs. Default: 10",
+    )
+    parser.add_argument(
+        "--model_path",
+        type=str,
+        default=None,
+        help="Path to pretrained model. Default: None",
     )
     parser.add_argument("--wandb", action="store_true")
     args = parser.parse_args()
@@ -145,7 +168,7 @@ if __name__ == "__main__":
         raise NotImplementedError(
             f"Dataset {args.dataset} not implemented yet. Please choose from ['mnist']"
         )
-    
+
     # Print device to run model on
     print(f"Running model on {device}")
 
