@@ -23,7 +23,7 @@ class NICE(nn.Module):
         (larger S_ii means the less important dimension i is). More important dimensions of the 
         spctrum can be viewed as a manifold learned by the model.
         """
-        self.s = nn.Parameter(torch.randn(input_dim))
+        self.s = nn.Parameter(torch.rand(input_dim))
 
     def forward(self, x):
         """

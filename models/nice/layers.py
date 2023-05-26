@@ -5,13 +5,14 @@ import torch.nn as nn
 class ReLUNet(nn.Module):
     def __init__(self, latent_dim, hidden_dim=1000, num_layers=5):
         super(ReLUNet, self).__init__()
-        # latend_dim = input_dim // 2 (split into either odds or evens)
+        # latent_dim = input_dim // 2 (split into either odds or evens)
         # m: R^d -> R^{D-d}=R^{d} (ie: latent_dim -> input_dim - latent_dim = latent_dim)
         modules = [nn.Linear(latent_dim, hidden_dim)]
         for _ in range(num_layers):
             modules.append(nn.Linear(hidden_dim, hidden_dim))
             modules.append(nn.ReLU())
-            modules.append(nn.BatchNorm1d(hidden_dim)) # NOTE: BatchNorm added to eliminate loss NaNs
+            #modules.append(nn.BatchNorm1d(hidden_dim)) 
+            modules.append(nn.Linear(hidden_dim, hidden_dim))
         modules.append(nn.Linear(hidden_dim, latent_dim))
         self.net = nn.Sequential(*modules)
 

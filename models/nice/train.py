@@ -16,8 +16,18 @@ import os
 
 import wandb
 
+hyak = False
 if torch.cuda.is_available():
     device = torch.device("cuda")
+    device_name = torch.cuda.get_device_name()
+    print(f"Using CUDA capable {device_name} for model training")
+    if 'GeForce' not in device_name:
+        hyak = True
+        print("    Using tensor optimizations and mixed precision")
+        torch.backends.cudnn.benchmark = True
+        torch.backends.cuda.matmul.allow_tf32 = True
+        torch.backends.cudnn.allow_tf32 = True
+        torch.backends.cuda.matmul.allow_fp16_reduced_precision_reduction = True
 else:
     device = torch.device("cpu")
 
@@ -33,7 +43,7 @@ def train(args, model, train_dataset, test_dataset):
     optimizer = torch.optim.Adam(
         model.parameters(),
         lr=args.lr,
-        weight_decay=args.decay,
+#        weight_decay=args.decay,
         # betas=(args.B1, args.B2),
         # eps=args.eps,
     )
@@ -60,27 +70,29 @@ def train(args, model, train_dataset, test_dataset):
             train_dataset,
             batch_size=args.batch_size,
             shuffle=True,
-            num_workers=8,
+            num_workers=16,
             pin_memory=True,
         )
         for batch, labels in (
             pbar := tqdm(train_loader, desc="Training", postfix={"Loss": loss})
         ):
-            y, log_jacobian = model(batch.to(device))
+            batch = batch.to(device, non_blocking=True)
+            y, log_jacobian = model(batch)
             loss = nice_loss_fn(y, log_jacobian)
             model.zero_grad()
             loss.backward()
             optimizer.step()
             num_steps += 1
-            pbar.set_postfix({"Loss": loss.item()})
+            if num_steps % 100 == 0:
+                pbar.set_postfix({"Loss": loss.item()})
 
-            if args.wandb:
+            if args.wandb and num_steps % 100 == 0:
                 wandb.log({"train_loss": loss.item()}, step=num_steps)
         del train_loader
 
         if args.save_model and (epoch) % args.save_epoch == 0:
             _device = "cuda" if torch.cuda.is_available() else "cpu"
-            _args = f"{args.dataset}_{args.num_layers}_{args.hidden_dim}_{args.prior}_epoch{epoch+1}_{_device}.pt"
+            _args = f"{args.dataset}_{args.num_layers}_{args.hidden_dim}_{args.prior}_epoch{epoch}_{_device}.pt"
             torch.save(model.state_dict(), os.path.join(args.save_path, _args))
             print(f"Model saved >>> {_args}")
 
@@ -138,9 +150,9 @@ if __name__ == "__main__":
     # parse command line arguments
     parser = argparse.ArgumentParser()
     parser.add_argument("--batch_size", type=int, default=32)
-    parser.add_argument("--epochs", type=int, default=20)
+    parser.add_argument("--epochs", type=int, default=1500)
     parser.add_argument("--dataset", type=str, default="mnist")
-    parser.add_argument("--learning_rate", dest="lr", type=float, default=0.0002)
+    parser.add_argument("--learning_rate", dest="lr", type=float, default=1e-4)
     parser.add_argument("--decay", type=float, default=0.9)
     parser.add_argument("--beta1", dest="B1", type=float, default=0.9)
     parser.add_argument("--beta2", dest="B2", type=float, default=0.999)
@@ -164,7 +176,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--save_epoch",
         type=int,
-        default=9,
+        default=25,
         help="Number of saves between epochs. Default: 10",
     )
     parser.add_argument(
@@ -195,10 +207,10 @@ if __name__ == "__main__":
                 "dataset": args.dataset,
                 "learning_rate": args.lr,
                 "decay": args.decay,
-                "beta1": args.B2,
-                "beta2": args.B2,
-                "lambda": args.lam,
-                "epsilon": args.eps,
+                #"beta1": args.B2,
+                #"beta2": args.B2,
+                #"lambda": args.lam,
+                #"epsilon": args.eps,
                 "nonlinear_layers": args.num_layers,
                 "nonlinear_hidden_dim": args.hidden_dim,
                 "prior": args.prior,
@@ -218,9 +230,6 @@ if __name__ == "__main__":
         raise NotImplementedError(
             f"Dataset {args.dataset} not implemented yet. Please choose from ['mnist']"
         )
-
-    # Print device to run model on
-    print(f"Running model on {device}")
 
     # Create the model
     model = NICE(
