@@ -92,7 +92,7 @@ def train(args, model, train_dataset, test_dataset):
 
         if args.save_model and (epoch) % args.save_epoch == 0:
             _device = "cuda" if torch.cuda.is_available() else "cpu"
-            _args = f"{args.dataset}_{args.num_layers}_{args.hidden_dim}_{args.prior}_epoch{epoch}_{_device}.pt"
+            _args = f"{args.dataset}_{args.hidden_dim}_{args.prior}_epoch{epoch}_{_device}.pt"
             torch.save(model.state_dict(), os.path.join(args.save_path, _args))
             print(f"Model saved >>> {_args}")
 
@@ -152,7 +152,7 @@ if __name__ == "__main__":
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--epochs", type=int, default=1500)
     parser.add_argument("--dataset", type=str, default="mnist")
-    parser.add_argument("--learning_rate", dest="lr", type=float, default=1e-4)
+    parser.add_argument("--learning_rate", dest="lr", type=float, default=0.0002)
     parser.add_argument("--decay", type=float, default=0.9)
     parser.add_argument("--beta1", dest="B1", type=float, default=0.9)
     parser.add_argument("--beta2", dest="B2", type=float, default=0.999)
