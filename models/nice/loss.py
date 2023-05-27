@@ -82,7 +82,8 @@ class GaussianNICECriterion(_NICECriterion):
 
     def prior(self, h):
         return -0.5 * (
-            torch.sum(torch.pow(h, 2), dim=1) + torch.log(torch.tensor(2 * np.pi))
+            torch.sum(torch.pow(h, 2), dim=1)
+            + h.size(1) * torch.log(torch.tensor(2 * np.pi))
         )
 
 

@@ -19,11 +19,11 @@ class NICE(nn.Module):
         """
         Create the scaling diagonal matrix (see Section 3.3 of the NICE paper)
         Multiplies the ith output value by S_ii. Weights certain dim more than others.
-        Similar to eigenspectrum of PCA, exposing the variation present in each latent dimension 
-        (larger S_ii means the less important dimension i is). More important dimensions of the 
-        spctrum can be viewed as a manifold learned by the model.
+        Similar to eigenspectrum of PCA, exposing the variation present in each latent dimension
+        (larger S_ii means the less important dimension i is). More important dimensions of the
+        spectrum can be viewed as a manifold learned by the model.
         """
-        self.s = nn.Parameter(torch.rand(input_dim))
+        self.s = nn.Parameter(torch.ones(input_dim))
 
     def forward(self, x):
         """

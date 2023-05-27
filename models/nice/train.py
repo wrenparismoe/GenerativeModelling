@@ -21,7 +21,7 @@ if torch.cuda.is_available():
     device = torch.device("cuda")
     device_name = torch.cuda.get_device_name()
     print(f"Using CUDA capable {device_name} for model training")
-    if 'GeForce' not in device_name:
+    if "GeForce" not in device_name:
         hyak = True
         print("    Using tensor optimizations and mixed precision")
         torch.backends.cudnn.benchmark = True
@@ -39,13 +39,13 @@ def train(args, model, train_dataset, test_dataset):
         model.load_state_dict(torch.load(args.model_path))
         model.to(device)
 
-    # Create the optimizer (AdaM)
+    # Create the optimizer (use AdaM or AdaMW)
     optimizer = torch.optim.Adam(
         model.parameters(),
         lr=args.lr,
-#        weight_decay=args.decay,
-        # betas=(args.B1, args.B2),
-        # eps=args.eps,
+        weight_decay=args.decay,
+        betas=(args.B1, args.B2),
+        eps=args.eps,
     )
 
     if args.prior == "gaussian":
@@ -96,11 +96,11 @@ def train(args, model, train_dataset, test_dataset):
             torch.save(model.state_dict(), os.path.join(args.save_path, _args))
             print(f"Model saved >>> {_args}")
 
-        # val_results = validate(args, model, test_dataset, nice_loss_fn)
-        # print values of val_results with a precision of 4 decimal places
-        # print({k: f"{v:.4f}" for k, v in val_results.items()})
-        # if args.wandb:
-        # wandb.log(val_results, step=epoch)
+        if args.validate:
+            val_results = validate(args, model, test_dataset, nice_loss_fn)
+            print({k: f"{v:.4f}" for k, v in val_results.items()})
+            if args.wandb:
+                wandb.log(val_results, step=epoch)
 
 
 num_val_steps = 0
@@ -166,6 +166,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--prior", type=str, choices=("gaussian", "logistic"), default="logistic"
     )
+    parser.add_argument(
+        "--validate", action="store_true", help="Run validation. Default: False"
+    )
     # args for save_model, save_epoch, save_path, and model_path
     parser.add_argument(
         "--no_save_model",
@@ -207,10 +210,10 @@ if __name__ == "__main__":
                 "dataset": args.dataset,
                 "learning_rate": args.lr,
                 "decay": args.decay,
-                #"beta1": args.B2,
-                #"beta2": args.B2,
-                #"lambda": args.lam,
-                #"epsilon": args.eps,
+                # "beta1": args.B2,
+                # "beta2": args.B2,
+                # "lambda": args.lam,
+                # "epsilon": args.eps,
                 "nonlinear_layers": args.num_layers,
                 "nonlinear_hidden_dim": args.hidden_dim,
                 "prior": args.prior,
