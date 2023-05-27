@@ -5,7 +5,7 @@ import numpy as np
 from .data import load_data
 from .loss import (
     GaussianNICECriterion,
-    LogisticNICECriterion,
+    # LogisticNICECriterion,
     StandardLogisticDistribution,
 )
 from .model import NICE
@@ -159,7 +159,7 @@ if __name__ == "__main__":
     parser.add_argument("--lambda", dest="lam", type=float, default=0.0)
     parser.add_argument("--epsilon", dest="eps", type=float, default=1e-8)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--nonlinear_layers", dest="num_layers", type=int, default=5)
+    # parser.add_argument("--nonlinear_layers", dest="num_layers", type=int, default=5)
     parser.add_argument(
         "--nonlinear_hidden_dim", dest="hidden_dim", type=int, default=1000
     )
@@ -214,7 +214,7 @@ if __name__ == "__main__":
                 # "beta2": args.B2,
                 # "lambda": args.lam,
                 # "epsilon": args.eps,
-                "nonlinear_layers": args.num_layers,
+                "nonlinear_layers": 5,  # args.num_layers,
                 "nonlinear_hidden_dim": args.hidden_dim,
                 "prior": args.prior,
             },
@@ -235,8 +235,6 @@ if __name__ == "__main__":
         )
 
     # Create the model
-    model = NICE(
-        input_dim=input_dim, hidden_dim=args.hidden_dim, num_layers=args.num_layers
-    ).to(device)
+    model = NICE(input_dim=input_dim, hidden_dim=args.hidden_dim).to(device)
 
     train(args, model, train_dataset, test_dataset)
