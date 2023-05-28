@@ -70,7 +70,7 @@ def train(args, model, train_dataset, test_dataset):
             train_dataset,
             batch_size=args.batch_size,
             shuffle=True,
-            num_workers=16,
+            num_workers=16 if hyak else 4,
             pin_memory=True,
         )
         for batch, labels in (
@@ -90,7 +90,7 @@ def train(args, model, train_dataset, test_dataset):
                 wandb.log({"train_loss": loss.item()}, step=num_steps)
         del train_loader
 
-        if args.save_model and (epoch) % args.save_epoch == 0:
+        if args.save_model and (epoch) % args.save_epoch == 0 and (epoch) > 0:
             _device = "cuda" if torch.cuda.is_available() else "cpu"
             _args = f"{args.dataset}_{args.hidden_dim}_{args.prior}_epoch{epoch}_{_device}.pt"
             torch.save(model.state_dict(), os.path.join(args.save_path, _args))
